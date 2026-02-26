@@ -63,6 +63,13 @@ repos:
                 erpnext_s3_integration/public/js/lib/.*
             )$
 
+  - repo: https://github.com/returntocorp/semgrep
+    rev: v1.51.0
+    hooks:
+      - id: semgrep
+        name: "Run Semgrep custom rules"
+        args: ['--config', '.semgrep.yml', '--config', 'semgrep_frappe_rules', '--error']
+
 ci:
     autoupdate_schedule: weekly
     skip: []

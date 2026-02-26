@@ -133,18 +133,16 @@ app_license = "mit"
 # Hook on document methods and events
 
 doc_events = {
-    "File": {
-        "before_insert": "erpnext_s3_integration.file_hooks.before_insert",
-        "on_trash": "erpnext_s3_integration.file_hooks.on_trash",
-    }
+	"File": {
+		"before_insert": "erpnext_s3_integration.file_hooks.before_insert",
+		"on_trash": "erpnext_s3_integration.file_hooks.on_trash",
+	}
 }
 
 # Scheduled Tasks
 # ---------------
 
-scheduler_events = {
-    "all": ["erpnext_s3_integration.backup_hooks.scheduled_backup_and_sync"]
-}
+scheduler_events = {"all": ["erpnext_s3_integration.backup_hooks.scheduled_backup_and_sync"]}
 
 # Extend DocType Class
 # ------------------------------

@@ -1,0 +1,27 @@
+rules:
+  - id: frappe-db-sql-injection
+    patterns:
+      - pattern: frappe.db.sql(...)
+      - pattern-regex: "frappe\\.db\\.sql\\(.*(%s|%d|f\"|\\.format).*"
+    message: "Potential SQL injection detected: Use parameterized queries for dynamic values when calling frappe.db.sql(), instead of string formatting or concatenation."
+    languages: [python]
+    severity: ERROR
+
+  - id: hardcoded-aws-credentials
+    pattern-either:
+      - pattern: aws_access_key_id = "..."
+      - pattern: aws_secret_access_key = "..."
+      - pattern: |
+          $CLIENT = boto3.client(..., aws_access_key_id="...", ...)
+    message: "Do not hardcode AWS credentials in the codebase. Fetch them via frappe.get_doc, frappe.get_single, or frappe.get_decrypted_password."
+    languages: [python]
+    severity: WARNING
+
+  - id: direct-boto3-client-instantiation
+    paths:
+      exclude:
+        - "erpnext_s3_integration/s3_client.py"
+    pattern: boto3.client(...)
+    message: "Do not instantiate boto3.client() directly outside of the S3Client wrapper class to ensure standardized settings and credential management."
+    languages: [python]
+    severity: WARNING

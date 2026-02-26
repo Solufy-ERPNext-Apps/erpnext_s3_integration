@@ -132,39 +132,19 @@ app_license = "mit"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+    "File": {
+        "before_insert": "erpnext_s3_integration.file_hooks.before_insert",
+        "on_trash": "erpnext_s3_integration.file_hooks.on_trash",
+    }
+}
 
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"erpnext_s3_integration.tasks.all"
-# 	],
-# 	"daily": [
-# 		"erpnext_s3_integration.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"erpnext_s3_integration.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"erpnext_s3_integration.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"erpnext_s3_integration.tasks.monthly"
-# 	],
-# }
-
-# Testing
-# -------
-
-# before_tests = "erpnext_s3_integration.install.before_tests"
+scheduler_events = {
+    "all": ["erpnext_s3_integration.backup_hooks.scheduled_backup_and_sync"]
+}
 
 # Extend DocType Class
 # ------------------------------
@@ -199,7 +179,7 @@ app_license = "mit"
 
 # Request Events
 # ----------------
-# before_request = ["erpnext_s3_integration.utils.before_request"]
+before_request = ["erpnext_s3_integration.utils.before_request"]
 # after_request = ["erpnext_s3_integration.utils.after_request"]
 
 # Job Events
@@ -249,4 +229,3 @@ app_license = "mit"
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
-

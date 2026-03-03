@@ -108,12 +108,12 @@ def scheduled_backup_and_sync():
 	import datetime
 
 	from croniter import CroniterBadCronError, croniter
-	from frappe.utils import now_datetime
+	from frappe.utils import get_datetime, now_datetime
 
 	try:
 		now = now_datetime()
 		# Fallback to creation if never run
-		last_run = settings.last_backup_sync or settings.creation
+		last_run = get_datetime(settings.last_backup_sync or settings.creation)
 
 		cron = croniter(settings.backup_cron_expression, last_run)
 		next_run = cron.get_next(datetime.datetime)

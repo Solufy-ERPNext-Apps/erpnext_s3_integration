@@ -7,36 +7,28 @@ from unidecode import unidecode
 
 
 def generate_s3_key(file_doc, settings):
-	"""Generates a deterministic S3 key based on requirements."""
+	"""Generates a deterministic S3 key mirroring native Frappe paths."""
 	folder_prefix = settings.get("folder_prefix") or ""
 	if folder_prefix and not folder_prefix.endswith("/"):
 		folder_prefix += "/"
 
-	visibility = "private" if file_doc.is_private else "public"
-
-	# Extract date from creation or use current date
-	# Extract date from creation or use current date
-	from frappe.utils.data import get_datetime
-
-	if file_doc.creation:
-		try:
-			date_obj = get_datetime(file_doc.creation)
-			date = date_obj.strftime("%Y/%m/%d")
-		except Exception:
-			date = frappe.utils.nowdate().replace("-", "/")
+	# If this is an existing file being migrated, its file_url will simply be a local path like /files/x.png
+	file_url = getattr(file_doc, "file_url", None)
+	if file_url and file_url.startswith("/") and not file_url.startswith("/s3/"):
+		base_path = file_url.lstrip("/")
 	else:
-		date = frappe.utils.nowdate().replace("-", "/")
+		# Construct native-style path for brand new files
+		filename = unidecode(file_doc.file_name).replace(" ", "_") if file_doc.file_name else "unnamed_file"
+		identifier = (
+			f"{file_doc.content_hash}-{filename}" if getattr(file_doc, "content_hash", None) else filename
+		)
 
-	# Clean up doctype name
-	doctype = unidecode(file_doc.attached_to_doctype or "Unattached").replace(" ", "_")
+		if file_doc.is_private:
+			base_path = f"private/files/{identifier}"
+		else:
+			base_path = f"files/{identifier}"
 
-	# Clean original filename
-	filename = unidecode(file_doc.file_name or file_doc.file_url.split("/")[-1]).replace(" ", "_")
-
-	# Include hash if available, else just filename
-	identifier = f"{file_doc.content_hash}-{filename}" if file_doc.content_hash else filename
-
-	return f"{folder_prefix}attachments/{visibility}/{date}/{doctype}/{identifier}"
+	return f"{folder_prefix}{base_path}"
 
 
 def before_insert(file_doc, method):

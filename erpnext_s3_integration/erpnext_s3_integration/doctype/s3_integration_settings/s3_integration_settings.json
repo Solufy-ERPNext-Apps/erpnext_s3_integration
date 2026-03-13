@@ -29,7 +29,9 @@
         "backups_section",
         "upload_db_backup",
         "upload_files_backup",
+        "create_new_backup_before_sync",
         "backup_folder_prefix",
+        "delete_backups_older_than_days",
         "backup_cron_expression",
         "last_backup_sync",
         "keep_local_backups",
@@ -165,10 +167,24 @@
             "label": "Upload Files Backup"
         },
         {
+            "default": "1",
+            "description": "Uncheck to only sync existing local backups without generating new ones.",
+            "fieldname": "create_new_backup_before_sync",
+            "fieldtype": "Check",
+            "label": "Create New Backup Before Sync"
+        },
+        {
             "default": "backups",
             "fieldname": "backup_folder_prefix",
             "fieldtype": "Data",
             "label": "Backup Folder Prefix"
+        },
+        {
+            "default": "30",
+            "description": "0 to disable.",
+            "fieldname": "delete_backups_older_than_days",
+            "fieldtype": "Int",
+            "label": "Delete S3 Backups Older Than (Days)"
         },
         {
             "default": "0 2 * * *",

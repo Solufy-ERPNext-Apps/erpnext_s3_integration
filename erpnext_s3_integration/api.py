@@ -17,7 +17,7 @@ def get_file():
 
 	# Security: verify they have access to the File DOC
 	file_doc = frappe.db.get_value(
-		"File", {"file_url": f"/s3/{s3_key}"}, ["name", "is_private"], as_dict=True
+		"File", {"file_url": f"/s3/{s3_key}"}, ["name", "is_private", "file_name"], as_dict=True
 	)
 
 	if not file_doc:
@@ -35,12 +35,15 @@ def get_file():
 		try:
 			stream = s3_client.download_as_stream(s3_key)
 			response = Response(wrap_file(frappe.request.environ, stream), direct_passthrough=True)
-			# You could get content-type from S3 response if you pass it back from download_as_stream
-			# or from the File doc
-			mime_type = frappe.db.get_value("File", file_doc.name, "mime_type")
-			if mime_type:
-				response.headers["Content-Type"] = mime_type
 
+			import mimetypes
+
+			mime_type = (
+				mimetypes.guess_type(file_doc.file_name)[0]
+				if file_doc.file_name
+				else "application/octet-stream"
+			)
+			response.headers["Content-Type"] = mime_type
 			return response
 		except Exception as e:
 			frappe.log_error(f"Error streaming file from S3: {e}")

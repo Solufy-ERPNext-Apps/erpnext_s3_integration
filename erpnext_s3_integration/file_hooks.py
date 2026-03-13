@@ -17,28 +17,16 @@ def generate_s3_key(file_doc, settings):
 	if file_url and file_url.startswith("/") and not file_url.startswith("/s3/"):
 		base_path = file_url.lstrip("/")
 	else:
-		# Construct structured path for brand new files
-		visibility = "private" if file_doc.is_private else "public"
-
-		# Extract date from creation or use current date
-		import datetime
-
-		date_str = datetime.datetime.now().strftime("%Y/%m/%d")
-		if getattr(file_doc, "creation", None):
-			try:
-				from frappe.utils import get_datetime
-
-				date_str = get_datetime(file_doc.creation).strftime("%Y/%m/%d")
-			except Exception:
-				pass
-
-		doctype = unidecode(file_doc.attached_to_doctype or "Unattached").replace(" ", "_").strip()
-		filename = unidecode(file_doc.file_name or "unnamed_file").replace(" ", "_")
+		# Construct native-style path for brand new files
+		filename = unidecode(file_doc.file_name).replace(" ", "_") if file_doc.file_name else "unnamed_file"
 		identifier = (
 			f"{file_doc.content_hash}-{filename}" if getattr(file_doc, "content_hash", None) else filename
 		)
 
-		base_path = f"{visibility}/{date_str}/{doctype}/{identifier}"
+		if file_doc.is_private:
+			base_path = f"private/{identifier}"
+		else:
+			base_path = f"public/{identifier}"
 
 	return f"{folder_prefix}{base_path}"
 

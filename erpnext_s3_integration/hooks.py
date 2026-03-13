@@ -179,8 +179,12 @@ override_doctype_class = {"File": "erpnext_s3_integration.overrides.file.CustomF
 
 # Request Events
 # ----------------
-before_request = ["erpnext_s3_integration.utils.before_request"]
+# before_request = ["erpnext_s3_integration.utils.before_request"]
 # after_request = ["erpnext_s3_integration.utils.after_request"]
+
+website_redirects = [
+	{"source": r"/s3/(.*)", "target": r"/api/method/erpnext_s3_integration.api.get_file?key=\1"}
+]
 
 # Job Events
 # ----------

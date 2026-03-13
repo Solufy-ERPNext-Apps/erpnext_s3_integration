@@ -152,6 +152,8 @@ scheduler_events = {"all": ["erpnext_s3_integration.backup_hooks.scheduled_backu
 # 	"Task": "erpnext_s3_integration.custom.task.CustomTaskMixin"
 # }
 
+override_doctype_class = {"File": "erpnext_s3_integration.overrides.file.CustomFile"}
+
 # Overriding Methods
 # ------------------------------
 #

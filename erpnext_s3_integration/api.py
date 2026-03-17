@@ -1,5 +1,4 @@
 import frappe
-from frappe import _
 from werkzeug.wrappers import Response
 from werkzeug.wsgi import wrap_file
 
@@ -12,8 +11,6 @@ def get_file():
 		raise frappe.PageDoesNotExistError()
 
 	settings = frappe.get_single("S3 Integration Settings")
-	if not settings.enable_attachments_s3:
-		frappe.throw(_("S3 Attachments are disabled"), frappe.PermissionError)
 
 	# Security: verify they have access to the File DOC
 	file_doc = frappe.db.get_value(

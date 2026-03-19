@@ -19,7 +19,7 @@ class S3IntegrationSettings(Document):
 
 			if missing:
 				frappe.throw(
-					f"The following fields are required when MS3 Integration features are enabled: {', '.join(missing)}"
+					f"The following fields are required when S3 Integration features are enabled: {', '.join(missing)}"
 				)
 
 

@@ -43,13 +43,11 @@ def after_backup():
 	import datetime
 
 	today = datetime.datetime.now()
-	year = today.strftime("%Y")
-	month = today.strftime("%m")
-	day = today.strftime("%d")
+	date_str = today.strftime("%Y-%m-%d")
+	today_str = today.strftime("%Y%m%d")
 
 	# Find today's backups
 	files = os.listdir(backup_path)
-	today_str = today.strftime("%Y%m%d")
 
 	uploaded_count = 0
 	for file in files:
@@ -62,8 +60,8 @@ def after_backup():
 				continue
 
 			# Construct S3 Key
-			# Pattern: [{folder_prefix}/]{backup_folder_prefix}/{site_name}/{year}/{month}/{day}/{filename}
-			s3_key = f"{folder_prefix}{backup_prefix}{site_name}/{year}/{month}/{day}/{file}"
+			# Pattern: [{folder_prefix}/]{backup_folder_prefix}/{site_name}/YYYY-MM-DD/{filename}
+			s3_key = f"{folder_prefix}{backup_prefix}{site_name}/{date_str}/{file}"
 			full_path = os.path.join(backup_path, file)
 
 			try:
@@ -85,6 +83,35 @@ def after_backup():
 		log_s3_sync("Success", msg)
 	else:
 		log_s3_sync("Failed", "No backup files were found or synced to S3.")
+
+	# Cleanup old backups
+	retention_days = settings.get("delete_backups_older_than_days") or 0
+	if retention_days > 0:
+		cleanup_old_backups(s3_client, f"{folder_prefix}{backup_prefix}{site_name}/", retention_days)
+
+
+def cleanup_old_backups(s3_client, prefix, retention_days):
+	import datetime
+
+	cutoff_date = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=retention_days)
+	deleted_count = 0
+
+	try:
+		paginator = s3_client.client.get_paginator("list_objects_v2")
+		for page in paginator.paginate(Bucket=s3_client.bucket_name, Prefix=prefix):
+			if "Contents" in page:
+				for obj in page["Contents"]:
+					if obj["LastModified"] < cutoff_date:
+						s3_client.delete_object(obj["Key"])
+						deleted_count += 1
+
+		if deleted_count > 0:
+			log_s3_sync(
+				"Success", f"Cleaned up {deleted_count} S3 backup(s) older than {retention_days} days."
+			)
+	except Exception as e:
+		frappe.log_error(f"S3 Backup Cleanup Failed: {e}", "S3 Backup Sync Error")
+		log_s3_sync("Failed", f"Backup cleanup failed: {e}")
 
 
 def log_s3_sync(status, message):
@@ -108,20 +135,22 @@ def scheduled_backup_and_sync():
 	import datetime
 
 	from croniter import CroniterBadCronError, croniter
-	from frappe.utils import now_datetime
+	from frappe.utils import get_datetime, now_datetime
 
 	try:
 		now = now_datetime()
 		# Fallback to creation if never run
-		last_run = settings.last_backup_sync or settings.creation
+		last_run = get_datetime(settings.last_backup_sync or settings.creation)
 
 		cron = croniter(settings.backup_cron_expression, last_run)
 		next_run = cron.get_next(datetime.datetime)
 
 		if now >= next_run:
-			from frappe.utils.backups import backup
+			if settings.get("create_new_backup_before_sync", 1):
+				from frappe.utils.backups import backup
 
-			backup(with_files=settings.upload_files_backup)
+				backup(with_files=settings.upload_files_backup)
+
 			after_backup()
 
 			# Update the last sync time

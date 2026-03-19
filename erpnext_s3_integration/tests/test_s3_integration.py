@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
+from erpnext_s3_integration import api
 from erpnext_s3_integration.file_hooks import generate_s3_key
 from erpnext_s3_integration.s3_client import S3Client
 
@@ -123,3 +124,30 @@ class TestS3Integration(FrappeTestCase):
 		self.assertTrue(key.startswith("test-prefix/attachments/public/"))
 		self.assertIn("/Sales_Invoice/", key)
 		self.assertTrue(key.endswith("My_test_file_123.txt"))
+
+	@patch("erpnext_s3_integration.s3_client.S3Client.generate_presigned_url")
+	def test_existing_s3_file_access_still_works_when_uploads_disabled(self, mock_generate_presigned_url):
+		mock_generate_presigned_url.return_value = "https://example.com/test-file"
+
+		self.settings.enable_attachments_s3 = 0
+		self.settings.stream_from_s3 = 0
+		self.settings.save(ignore_permissions=True)
+
+		file_doc = frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": "existing_on_s3.txt",
+				"file_url": "/s3/test-prefix/existing_on_s3.txt",
+				"is_private": 0,
+			}
+		).insert(ignore_permissions=True)
+
+		self.addCleanup(lambda: frappe.delete_doc("File", file_doc.name, force=1, ignore_permissions=True))
+
+		frappe.local.form_dict = frappe._dict({"key": "test-prefix/existing_on_s3.txt"})
+		frappe.local.response = frappe._dict()
+
+		api.get_file()
+
+		self.assertEqual(frappe.local.response["type"], "redirect")
+		self.assertEqual(frappe.local.response["location"], "https://example.com/test-file")

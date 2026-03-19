@@ -1,6 +1,3 @@
-// Copyright (c) 2026, Frappe and contributors
-// For license information, please see license.txt
-
 frappe.ui.form.on("S3 Integration Settings", {
 	refresh(frm) {
 		frm.trigger("set_status_color");
@@ -19,7 +16,6 @@ frappe.ui.form.on("S3 Integration Settings", {
 	set_status_color(frm) {
 		if (!frm.doc.status) return;
 
-		// Apply to the header badge (the nav bar)
 		frm.page.clear_indicator();
 		if (frm.doc.status === "Configured & Connected") {
 			frm.page.set_indicator(frm.doc.status, "green");

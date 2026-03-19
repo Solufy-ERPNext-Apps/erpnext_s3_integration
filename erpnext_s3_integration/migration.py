@@ -2,6 +2,7 @@ import os
 
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 from erpnext_s3_integration.file_hooks import generate_s3_key
 from erpnext_s3_integration.s3_client import S3Client
@@ -27,6 +28,7 @@ def start_migration(only_unmigrated: bool = True):
 
 
 def run_migration(only_unmigrated):
+	only_unmigrated = bool(cint(only_unmigrated))
 	settings = frappe.get_single("S3 Integration Settings")
 	s3_client = S3Client()
 
@@ -47,16 +49,22 @@ def run_migration(only_unmigrated):
 	success_count = 0
 	failed_count = 0
 	skipped_count = 0
+	total_files = len(files)
+
+	if not total_files:
+		message = "Migration completed.\nSuccessfully Migrated: 0\nSkipped: 0\nFailed: 0"
+		print(message)
+		frappe.log_error(message, "S3 Migration Summary")
+		return
 
 	for i, f in enumerate(files):
 		try:
-			# Skip already migrated
+			# Skip external links and already S3-backed rows.
+			# Existing migration operates on locally stored files only.
 			if f.file_url and f.file_url.startswith("/s3/"):
-				if only_unmigrated:
-					skipped_count += 1
-					continue
-			elif f.file_url and (f.file_url.startswith("http://") or f.file_url.startswith("https://")):
-				# External web link
+				skipped_count += 1
+				continue
+			if f.file_url and (f.file_url.startswith("http://") or f.file_url.startswith("https://")):
 				skipped_count += 1
 				continue
 
@@ -85,7 +93,6 @@ def run_migration(only_unmigrated):
 				doc.name,
 				{
 					"file_url": f"/s3/{s3_key}",
-					"_s3_uploaded_key": s3_key,  # Assuming we add this custom field if needed
 				},
 				update_modified=False,
 			)
@@ -94,7 +101,9 @@ def run_migration(only_unmigrated):
 			# os.remove(local_path)
 
 			success_count += 1
-		except Exception:
+			print(f"Migrated {f.file_name}")
+		except Exception as e:
+			print(f"Error migrating {f.file_name}: {e}")
 			frappe.log_error(
 				message=frappe.get_traceback(),
 				title=f"Migration Error for File {f.name}",
@@ -102,11 +111,12 @@ def run_migration(only_unmigrated):
 			failed_count += 1
 
 		frappe.publish_progress(
-			i * 100 / len(files),
+			(i + 1) * 100 / total_files,
 			title="Migrating files to S3",
-			description=f"Processed {i}/{len(files)}",
+			description=f"Processed {i + 1}/{total_files}",
 		)
 
 	# Final summary
 	message = f"Migration completed.<br>Successfully Migrated: {success_count}<br>Skipped: {skipped_count}<br>Failed: {failed_count}"
+	print(message.replace("<br>", "\n"))
 	frappe.log_error(message, "S3 Migration Summary")

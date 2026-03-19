@@ -76,6 +76,20 @@ class S3Client:
 		try:
 			self._client.upload_fileobj(fileobj, self.bucket_name, key, ExtraArgs=extra_args)
 			return True
+		except ClientError as e:
+			error_code = (e.response or {}).get("Error", {}).get("Code")
+			# Buckets with Object Ownership "Bucket owner enforced" reject ACLs.
+			# Retry once without ACL so uploads still succeed.
+			if error_code == "AccessControlListNotSupported" and "ACL" in extra_args:
+				try:
+					fileobj.seek(0)
+				except Exception:
+					pass
+				extra_args.pop("ACL", None)
+				self._client.upload_fileobj(fileobj, self.bucket_name, key, ExtraArgs=extra_args)
+				return True
+			frappe.log_error(message=frappe.get_traceback(), title=f"S3 Upload Failed for {key}")
+			raise frappe.ValidationError(f"Could not upload file to S3: {e}")
 		except Exception as e:
 			frappe.log_error(message=frappe.get_traceback(), title=f"S3 Upload Failed for {key}")
 			raise frappe.ValidationError(f"Could not upload file to S3: {e}")

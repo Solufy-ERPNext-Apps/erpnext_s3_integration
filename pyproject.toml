@@ -1,7 +1,7 @@
 [project]
 name = "erpnext_s3_integration"
 authors = [
-    { name = "Frappe", email = "dev@example.com"}
+    { name = "Solufy", email = "sahil@solufy.in"}
 ]
 description = "S3-based storage for File attachments and backups"
 requires-python = ">=3.14"
@@ -9,6 +9,7 @@ readme = "README.md"
 dynamic = ["version"]
 dependencies = [
     "boto3~=1.34.0",
+    "croniter~=6.0.0",
     # "frappe~=16.0.0" # Installed and managed by bench.
 ]
 

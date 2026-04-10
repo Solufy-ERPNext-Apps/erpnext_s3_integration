@@ -1,15 +1,14 @@
 exclude: 'node_modules|.git'
-default_stages: [pre-commit]
+default_stages: [commit]
 fail_fast: false
-
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: v4.6.0
     hooks:
       - id: trailing-whitespace
         files: "erpnext_s3_integration.*"
-        exclude: ".*json$|.*txt$|.*csv|.*md|.*svg"
+        exclude: ".*json$|.*txt$|.*csv$|.*md$|.*svg$"
       - id: check-merge-conflict
       - id: check-ast
       - id: check-json
@@ -18,7 +17,7 @@ repos:
       - id: debug-statements
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.10
+    rev: v0.15.9
     hooks:
       - id: ruff
         name: "Run ruff import sorter"
@@ -31,46 +30,44 @@ repos:
         name: "Run ruff formatter"
 
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v2.7.1
+    rev: v4.0.0-alpha.8
     hooks:
       - id: prettier
         types_or: [javascript, vue, scss]
-        # Ignore any files that might contain jinja / bundles
         exclude: |
-            (?x)^(
-                erpnext_s3_integration/public/dist/.*|
-                .*node_modules.*|
-                .*boilerplate.*|
-                erpnext_s3_integration/templates/includes/.*|
-                erpnext_s3_integration/public/js/lib/.*
-            )$
-
+          (?x)^(
+            erpnext_s3_integration/public/dist/.*|
+            .*node_modules.*|
+            .*boilerplate.*|
+            erpnext_s3_integration/templates/includes/.*|
+            erpnext_s3_integration/public/js/lib/.*
+          )$
 
   - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: v8.44.0
+    rev: v10.2.0
     hooks:
       - id: eslint
         types_or: [javascript]
         args: ['--quiet']
-        # Ignore any files that might contain jinja / bundles
         exclude: |
-            (?x)^(
-                erpnext_s3_integration/public/dist/.*|
-                cypress/.*|
-                .*node_modules.*|
-                .*boilerplate.*|
-                erpnext_s3_integration/templates/includes/.*|
-                erpnext_s3_integration/public/js/lib/.*
-            )$
+          (?x)^(
+            erpnext_s3_integration/public/dist/.*|
+            cypress/.*|
+            .*node_modules.*|
+            .*boilerplate.*|
+            erpnext_s3_integration/templates/includes/.*|
+            erpnext_s3_integration/public/js/lib/.*
+          )$
 
   - repo: https://github.com/returntocorp/semgrep
-    rev: v1.51.0
+    rev: v1.89.0
     hooks:
       - id: semgrep
         name: "Run Semgrep custom rules"
+        language_version: python3.12
         args: ['--config', '.semgrep.yml', '--config', 'semgrep_frappe_rules', '--error']
 
 ci:
-    autoupdate_schedule: weekly
-    skip: []
-    submodules: false
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

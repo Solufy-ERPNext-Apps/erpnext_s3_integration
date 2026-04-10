@@ -11,6 +11,11 @@ class S3Client:
 		self._client = None
 		self.setup_client()
 
+	@property
+	def client(self):
+		"""Expose the underlying boto3 client for internal callers like backup cleanup."""
+		return self._client
+
 	def get_password(self, fieldname):
 		# frappe.get_single doesn't decrypt passwords automatically by default in all contexts
 		if not self.settings.get(fieldname):

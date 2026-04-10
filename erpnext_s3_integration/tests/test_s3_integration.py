@@ -5,6 +5,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from erpnext_s3_integration import api
+from erpnext_s3_integration.backup_hooks import cleanup_old_backups
 from erpnext_s3_integration.file_hooks import generate_s3_key
 from erpnext_s3_integration.s3_client import S3Client
 
@@ -151,3 +152,26 @@ class TestS3Integration(FrappeTestCase):
 
 		self.assertEqual(frappe.local.response["type"], "redirect")
 		self.assertEqual(frappe.local.response["location"], "https://example.com/test-file")
+
+	@patch("erpnext_s3_integration.backup_hooks.log_s3_sync")
+	def test_cleanup_old_backups_uses_public_client(self, mock_log_s3_sync):
+		s3_client = MagicMock()
+		s3_client.bucket_name = "test-bucket"
+		paginator = MagicMock()
+		paginator.paginate.return_value = [
+			{
+				"Contents": [
+					{
+						"Key": "backups/site/old-file.sql.gz",
+						"LastModified": frappe.utils.add_days(frappe.utils.now_datetime(), -10),
+					}
+				]
+			}
+		]
+		s3_client.client.get_paginator.return_value = paginator
+
+		cleanup_old_backups(s3_client, "backups/site/", 7)
+
+		s3_client.client.get_paginator.assert_called_once_with("list_objects_v2")
+		s3_client.delete_object.assert_called_once_with("backups/site/old-file.sql.gz")
+		self.assertTrue(mock_log_s3_sync.called)

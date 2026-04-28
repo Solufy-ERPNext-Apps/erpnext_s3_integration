@@ -14,7 +14,7 @@ doc_events = {
 
 scheduler_events = {"all": ["erpnext_s3_integration.backup_hooks.scheduled_backup_and_sync"]}
 
-override_doctype_class = {"File": "erpnext_s3_integration.overrides.file.CustomFile"}
+extend_doctype_class = {"File": "erpnext_s3_integration.overrides.file.CustomFile"}
 
 website_redirects = [
 	{"source": r"/s3/(.*)", "target": r"/api/method/erpnext_s3_integration.api.get_file?key=\1"}

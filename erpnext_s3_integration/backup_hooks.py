@@ -140,7 +140,7 @@ def scheduled_backup_and_sync():
 	try:
 		now = now_datetime()
 		# Fallback to creation if never run
-		last_run = get_datetime(settings.last_backup_sync or settings.creation)
+		last_run = get_datetime(settings.last_backup_sync or (now - datetime.timedelta(days=1)))
 
 		cron = croniter(settings.backup_cron_expression, last_run)
 		next_run = cron.get_next(datetime.datetime)

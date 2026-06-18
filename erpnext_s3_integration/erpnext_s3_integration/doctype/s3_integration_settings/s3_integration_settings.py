@@ -2,8 +2,6 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from erpnext_s3_integration.s3_client import S3Client
-
 
 class S3IntegrationSettings(Document):
 	def validate(self):
@@ -27,6 +25,8 @@ class S3IntegrationSettings(Document):
 def test_s3_connection():
 	frappe.only_for("System Manager")
 	try:
+		from erpnext_s3_integration.s3_client import S3Client
+
 		client = S3Client()
 		success, msg = client.test_connection()
 

@@ -5,7 +5,6 @@ from frappe import _
 from frappe.utils import cint
 
 from erpnext_s3_integration.file_hooks import generate_s3_key
-from erpnext_s3_integration.s3_client import S3Client
 
 
 @frappe.whitelist()
@@ -30,6 +29,9 @@ def start_migration(only_unmigrated: bool = True):
 def run_migration(only_unmigrated):
 	only_unmigrated = bool(cint(only_unmigrated))
 	settings = frappe.get_single("S3 Integration Settings")
+
+	from erpnext_s3_integration.s3_client import S3Client
+
 	s3_client = S3Client()
 
 	files = frappe.get_all(

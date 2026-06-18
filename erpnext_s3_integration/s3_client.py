@@ -1,8 +1,22 @@
-import boto3
 import frappe
-from botocore.exceptions import ClientError
 from frappe import _
 from frappe.utils.password import get_decrypted_password
+
+
+def _load_boto3():
+	"""Import boto3 lazily so Desk boot is not blocked by optional S3 dependencies."""
+	try:
+		import boto3
+		from botocore.exceptions import ClientError
+	except Exception:
+		frappe.throw(
+			_(
+				"S3 dependencies could not be loaded. Please verify the boto3/OpenSSL environment before using S3 features."
+			),
+			exc=frappe.ValidationError,
+		)
+
+	return boto3, ClientError
 
 
 class S3Client:
@@ -28,6 +42,7 @@ class S3Client:
 			return self.settings.get(fieldname)
 
 	def setup_client(self):
+		boto3, _ = _load_boto3()
 		aws_access_key_id = self.settings.aws_access_key_id
 		aws_secret_access_key = self.get_password("aws_secret_access_key")
 		region_name = self.settings.region_name
@@ -59,11 +74,12 @@ class S3Client:
 		self._client = boto3.client(**client_kwargs)
 
 	def test_connection(self):
+		_, client_error = _load_boto3()
 		try:
 			# Trying to list a bounded number of objects is a good way to verify bucket access
 			self._client.list_objects_v2(Bucket=self.bucket_name, MaxKeys=1)
 			return True, "Connection successful! Bucket is accessible."
-		except ClientError as e:
+		except client_error as e:
 			frappe.log_error(message=frappe.get_traceback(), title="S3 Test Connection Error")
 			return False, f"Connection Failed: {e}"
 		except Exception as e:
@@ -71,6 +87,7 @@ class S3Client:
 			return False, f"Connection Failed: {e!s}"
 
 	def upload_fileobj(self, fileobj, key, content_type=None, is_public=False):
+		_, client_error = _load_boto3()
 		extra_args = {}
 		if content_type:
 			extra_args["ContentType"] = content_type
@@ -81,7 +98,7 @@ class S3Client:
 		try:
 			self._client.upload_fileobj(fileobj, self.bucket_name, key, ExtraArgs=extra_args)
 			return True
-		except ClientError as e:
+		except client_error as e:
 			error_code = (e.response or {}).get("Error", {}).get("Code")
 			# Buckets with Object Ownership "Bucket owner enforced" reject ACLs.
 			# Retry once without ACL so uploads still succeed.

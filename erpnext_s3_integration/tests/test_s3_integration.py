@@ -24,10 +24,6 @@ class TestS3Integration(FrappeTestCase):
 		self.settings.use_path_style = 0
 		self.settings.endpoint_url = ""
 
-		# Save to DB so get_single works natively during tests
-		self.settings.flags.ignore_mandatory = True
-		self.settings.save(ignore_permissions=True)
-
 		# For tests we won't actually encrypt to DB to avoid complexities.
 		# Configuration resolution decrypts the Password field directly.
 		patcher = patch(
@@ -36,6 +32,10 @@ class TestS3Integration(FrappeTestCase):
 		)
 		self.mock_get_password = patcher.start()
 		self.addCleanup(patcher.stop)
+
+		# Save to DB so get_single works natively during tests
+		self.settings.flags.ignore_mandatory = True
+		self.settings.save(ignore_permissions=True)
 
 	@patch("boto3.client")
 	def test_s3_client_init(self, mock_boto_client):

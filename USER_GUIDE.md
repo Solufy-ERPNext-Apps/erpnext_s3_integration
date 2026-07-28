@@ -46,6 +46,9 @@ Fill in the following fields:
 - `Use Path Style`: Enable this when your provider requires path-style bucket access
 - `Folder Prefix`: Optional root prefix for all files stored by the app
 
+> **Note on Environment & GitOps Configuration**:
+> If any of these fields are left empty, the application will automatically fall back to values defined in `site_config.json` (`s3_access_key_id`, `s3_secret_access_key`, `s3_region`, `s3_bucket`, `s3_endpoint_url`, `s3_use_path_style`) or Environment Variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_S3_BUCKET`, `AWS_ENDPOINT_URL`, `AWS_S3_USE_PATH_STYLE`). This is ideal for automated container deployments using Infisical or Docker secrets.
+
 After entering the values:
 
 1. Save the document.

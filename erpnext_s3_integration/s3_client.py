@@ -1,8 +1,60 @@
+import mimetypes
 import os
+import posixpath
+import re
+from urllib.parse import quote
 
 import frappe
 from frappe import _
 from frappe.utils.password import get_decrypted_password
+
+
+_INLINE_CONTENT_TYPES = {
+	"application/pdf",
+	"image/avif",
+	"image/gif",
+	"image/jpeg",
+	"image/png",
+	"image/webp",
+}
+_INVALID_HEADER_VALUE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def _safe_content_type(content_type, filename):
+	"""Return a valid MIME type, inferring it from the object key when necessary."""
+	if content_type:
+		content_type = content_type.strip().lower()
+		if (
+			not _INVALID_HEADER_VALUE.search(content_type)
+			and "/" in content_type
+			and content_type != "application/octet-stream"
+		):
+			return content_type
+
+	inferred_type, _encoding = mimetypes.guess_type(filename)
+	return inferred_type or "application/octet-stream"
+
+
+def _content_disposition(filename, content_type):
+	"""Build an injection-safe Content-Disposition with a Unicode filename."""
+	filename = posixpath.basename(filename.replace("\\", "/")) or "download"
+	filename = _INVALID_HEADER_VALUE.sub("", filename) or "download"
+	ascii_filename = filename.encode("ascii", "ignore").decode() or "download"
+	ascii_filename = ascii_filename.replace("\\", "_").replace('"', "_")
+	encoded_filename = quote(filename, safe="")
+	inferred_type, _encoding = mimetypes.guess_type(filename)
+	disposition = (
+		"inline"
+		if content_type in _INLINE_CONTENT_TYPES and inferred_type == content_type
+		else "attachment"
+	)
+	return f'{disposition}; filename="{ascii_filename}"; filename*=UTF-8\'\'{encoded_filename}'
+
+
+def resolve_content_headers(filename, content_type=None):
+	"""Resolve safe response/storage headers from a trusted MIME type or filename."""
+	content_type = _safe_content_type(content_type, filename)
+	return content_type, _content_disposition(filename, content_type)
 
 
 def _load_boto3():
@@ -169,9 +221,11 @@ class S3Client:
 
 	def upload_fileobj(self, fileobj, key, content_type=None, is_public=False):
 		_, client_error = _load_boto3()
-		extra_args = {}
-		if content_type:
-			extra_args["ContentType"] = content_type
+		content_type, content_disposition = resolve_content_headers(key, content_type)
+		extra_args = {
+			"ContentType": content_type,
+			"ContentDisposition": content_disposition,
+		}
 		# Only send ACL="public-read" if is_public AND use_public_read_acl is enabled in Desk
 		if is_public and getattr(self, "use_public_read_acl", False):
 			extra_args["ACL"] = "public-read"
@@ -212,11 +266,16 @@ class S3Client:
 			# We don't raise here, so file deletion won't be blocked if S3 fails
 			return False
 
-	def generate_presigned_url(self, key, expires_in=3600):
+	def generate_presigned_url(self, key, expires_in=3600, filename=None, content_type=None):
 		try:
+			params = {"Bucket": self.bucket_name, "Key": key}
+			if filename:
+				content_type, content_disposition = resolve_content_headers(filename, content_type)
+				params["ResponseContentType"] = content_type
+				params["ResponseContentDisposition"] = content_disposition
 			url = self._client.generate_presigned_url(
 				"get_object",
-				Params={"Bucket": self.bucket_name, "Key": key},
+				Params=params,
 				ExpiresIn=expires_in,
 			)
 			return url

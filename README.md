@@ -9,6 +9,7 @@ It supports AWS S3 and compatible providers such as MinIO, keeps existing S3-bac
 - Store new ERPNext `File` attachments in S3 instead of the local filesystem.
 - Open S3-backed files inside ERPNext through a secure application route.
 - Support both direct streaming and pre-signed URL redirects for file delivery.
+- Preview PDFs and safe raster images inline while downloading active or unknown file types.
 - Migrate existing local attachments to S3 in the background.
 - Sync database and file backups to S3.
 - Schedule backup sync using a CRON expression from the settings doctype.

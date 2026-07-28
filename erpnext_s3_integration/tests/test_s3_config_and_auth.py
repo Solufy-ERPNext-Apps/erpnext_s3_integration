@@ -6,7 +6,12 @@ from botocore.exceptions import ClientError
 from frappe.tests.utils import FrappeTestCase
 
 from erpnext_s3_integration import api
-from erpnext_s3_integration.s3_client import S3Client, parse_bool, resolve_s3_config
+from erpnext_s3_integration.s3_client import (
+	S3Client,
+	parse_bool,
+	resolve_content_headers,
+	resolve_s3_config,
+)
 
 
 class TestS3ConfigAndAuth(FrappeTestCase):
@@ -221,7 +226,11 @@ class TestS3ConfigAndAuth(FrappeTestCase):
 			fileobj,
 			"test-bucket",
 			"test_key",
-			ExtraArgs={"ContentType": "text/plain", "ACL": "public-read"},
+			ExtraArgs={
+				"ContentType": "text/plain",
+				"ContentDisposition": 'attachment; filename="test_key"; filename*=UTF-8\'\'test_key',
+				"ACL": "public-read",
+			},
 		)
 
 	@patch("erpnext_s3_integration.s3_client._load_boto3", return_value=(None, ClientError))
@@ -239,7 +248,10 @@ class TestS3ConfigAndAuth(FrappeTestCase):
 			fileobj,
 			"test-bucket",
 			"test_key",
-			ExtraArgs={"ContentType": "text/plain"},
+			ExtraArgs={
+				"ContentType": "text/plain",
+				"ContentDisposition": 'attachment; filename="test_key"; filename*=UTF-8\'\'test_key',
+			},
 		)
 
 	@patch("erpnext_s3_integration.s3_client._load_boto3", return_value=(None, ClientError))
@@ -256,8 +268,54 @@ class TestS3ConfigAndAuth(FrappeTestCase):
 			fileobj,
 			"test-bucket",
 			"private_key",
-			ExtraArgs={"ContentType": "text/plain"},
+			ExtraArgs={
+				"ContentType": "text/plain",
+				"ContentDisposition": 'attachment; filename="private_key"; filename*=UTF-8\'\'private_key',
+			},
 		)
+
+	def test_content_headers_preview_only_safe_types(self):
+		for filename, supplied_type, expected_type, expected_disposition in (
+			("invoice.pdf", None, "application/pdf", "inline"),
+			("photo.JPG", None, "image/jpeg", "inline"),
+			("vector.svg", None, "image/svg+xml", "attachment"),
+			("page.html", None, "text/html", "attachment"),
+			("archive.unknown", None, "application/octet-stream", "attachment"),
+			("legacy.pdf", "application/octet-stream", "application/pdf", "inline"),
+			("spoofed.html", "image/png", "image/png", "attachment"),
+			("mismatch.png", "text/html", "text/html", "attachment"),
+		):
+			with self.subTest(filename=filename):
+				content_type, disposition = resolve_content_headers(filename, supplied_type)
+				self.assertEqual(content_type, expected_type)
+				self.assertTrue(disposition.startswith(f"{expected_disposition};"))
+
+	def test_content_disposition_sanitizes_and_encodes_filename(self):
+		content_type, disposition = resolve_content_headers('private/factura "año"\r\n.pdf')
+
+		self.assertEqual(content_type, "application/pdf")
+		self.assertTrue(disposition.startswith('inline; filename="factura _ao_.pdf";'))
+		self.assertIn("filename*=UTF-8''factura%20%22a%C3%B1o%22.pdf", disposition)
+		self.assertNotIn("\r", disposition)
+		self.assertNotIn("\n", disposition)
+
+	def test_presigned_url_overrides_legacy_object_response_headers(self):
+		s3_client = S3Client.__new__(S3Client)
+		s3_client.bucket_name = "test-bucket"
+		s3_client._client = MagicMock()
+		s3_client._client.generate_presigned_url.return_value = "https://example.test/signed"
+
+		url = s3_client.generate_presigned_url(
+			"legacy/object-key",
+			expires_in=900,
+			filename='factura "año".pdf',
+			content_type="application/octet-stream",
+		)
+
+		self.assertEqual(url, "https://example.test/signed")
+		params = s3_client._client.generate_presigned_url.call_args.kwargs["Params"]
+		self.assertEqual(params["ResponseContentType"], "application/pdf")
+		self.assertTrue(params["ResponseContentDisposition"].startswith("inline;"))
 
 	@patch("erpnext_s3_integration.s3_client._load_boto3", return_value=(None, ClientError))
 	def test_public_acl_unsupported_retries_once_without_acl(self, _mock_load_boto3):

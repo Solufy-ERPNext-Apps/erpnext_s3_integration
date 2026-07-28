@@ -28,30 +28,35 @@ def get_file():
 		raise frappe.PermissionError()
 
 	# If stream_from_s3 is enabled, stream it directly, otherwise return presigned URL redirect
-	from erpnext_s3_integration.s3_client import S3Client
+	from erpnext_s3_integration.s3_client import S3Client, resolve_content_headers
 
 	s3_client = S3Client()
+	stored_content_type = file_obj.get("mime_type")
+	if not isinstance(stored_content_type, str):
+		stored_content_type = None
+	content_type, content_disposition = resolve_content_headers(
+		file_obj.file_name or s3_key, stored_content_type
+	)
 
 	if settings.stream_from_s3:
 		try:
 			stream = s3_client.download_as_stream(s3_key)
 			response = Response(wrap_file(frappe.request.environ, stream), direct_passthrough=True)
 
-			import mimetypes
-
-			mime_type = (
-				mimetypes.guess_type(file_obj.file_name)[0]
-				if file_obj.file_name
-				else "application/octet-stream"
-			)
-			response.headers["Content-Type"] = mime_type
+			response.headers["Content-Type"] = content_type
+			response.headers["Content-Disposition"] = content_disposition
 			return response
 		except Exception as e:
 			frappe.log_error(f"Error streaming file from S3: {e}")
 			raise frappe.DoesNotExistError()
 	else:
 		# Return a temporary redirect to the S3 URL
-		url = s3_client.generate_presigned_url(s3_key, expires_in=3600)
+		url = s3_client.generate_presigned_url(
+			s3_key,
+			expires_in=3600,
+			filename=file_obj.file_name or s3_key,
+			content_type=content_type,
+		)
 		if not url:
 			raise frappe.DoesNotExistError()
 

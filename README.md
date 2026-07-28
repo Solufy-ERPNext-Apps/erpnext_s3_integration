@@ -94,6 +94,8 @@ If credentials are not explicitly set in **S3 Integration Settings** DocType, th
     "s3_endpoint_url": "https://s3.us-east-1.amazonaws.com",
     "s3_use_path_style": false
   }
+  ```
+
 ### Security Enhancements & Object Ownership (ACLs)
 
 > **Important Security Note**: By default, `Use Public Read ACL` is **disabled (`0`)**. Objects uploaded to S3 are stored as private, requiring proxy streaming or pre-signed URLs. This aligns with modern AWS S3 security standards (`BucketOwnerEnforced` with Block Public Access enabled).
@@ -112,6 +114,103 @@ To store new attachments in S3:
 4. Save the settings.
 
 From that point onward, newly uploaded ERPNext attachments are stored in S3.
+
+### Upload API
+
+The app intercepts normal Frappe `File` creation; clients do not need an
+S3-specific upload endpoint. Desk, mobile, and SPA clients can keep using
+Frappe's authenticated multipart endpoint:
+
+```http
+POST /api/method/upload_file
+Authorization: token <api-key>:<api-secret>
+Content-Type: multipart/form-data
+```
+
+Multipart fields:
+
+- `file`: file body
+- `is_private`: `1` for private files, `0` for public files
+- `doctype` and `docname`: optional attachment target
+- `fieldname`: optional attachment field
+
+Example:
+
+```bash
+curl -X POST "https://erp.example.com/api/method/upload_file" \
+  -H "Authorization: token API_KEY:API_SECRET" \
+  -F "file=@invoice.pdf" \
+  -F "is_private=1" \
+  -F "doctype=Sales Invoice" \
+  -F "docname=ACC-SINV-2026-00001"
+```
+
+Server-side code can continue using Frappe's file manager:
+
+```python
+from frappe.utils.file_manager import save_file
+
+file_doc = save_file(
+    "invoice.pdf",
+    pdf_bytes,
+    "Sales Invoice",
+    "ACC-SINV-2026-00001",
+    is_private=1,
+)
+```
+
+`file_doc.file_url` is stored as `/s3/<object-key>`. Applications should retain
+and open that URL instead of constructing an S3 URL or calling
+`S3Client.upload_fileobj()` directly.
+
+### Object Keys and Uniqueness
+
+New object keys mirror Frappe's public/private layout:
+
+```text
+<folder-prefix>/<public|private>/<content-hash>-<normalized-file-name>
+```
+
+When Frappe has not populated `content_hash`, the normalized `file_name` is
+used. Frappe may already add a conflict-avoiding suffix to that name.
+
+The app does **not** currently add a UUID. `content_hash` is Frappe's MD5-based
+content identifier for deduplication and naming, not a security digest or random
+identifier. Callers must treat the returned `file_url` as the canonical
+location.
+
+### Download and Preview API
+
+Open the `file_url` returned by Frappe:
+
+```http
+GET /s3/private/files/invoice.pdf
+```
+
+The route resolves internally to:
+
+```http
+GET /api/method/erpnext_s3_integration.api.get_file?key=private/files/invoice.pdf
+```
+
+Before returning content, the app loads the matching `File` document, rejects
+Guest access to private files, and requires `File.is_downloadable()`.
+
+- With `Stream From S3` enabled, Frappe proxies the object bytes.
+- With it disabled, Frappe redirects to a presigned S3 URL valid for one hour.
+- PDFs and matching safe raster image types are served with `inline`.
+- HTML, SVG, unknown types, and MIME/extension mismatches use `attachment`.
+- Presigned response-header overrides provide preview behavior for legacy
+  objects that were stored as `application/octet-stream`.
+
+Custom Frappe authentication hooks remain compatible. If a JWT or other bearer
+hook validates the request and establishes `frappe.session.user` before the
+method runs, the same `File.is_downloadable()` authorization applies. The S3
+app does not independently interpret JWT claims or bypass Frappe permissions.
+
+For browser `fetch()` or XHR access to a presigned URL, allow the application
+origin in the bucket CORS policy. Normal navigation and native mobile clients
+do not use browser CORS in the same way.
 
 ## Existing File Migration
 

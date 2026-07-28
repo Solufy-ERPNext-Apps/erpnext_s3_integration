@@ -12,15 +12,19 @@ def get_file():
 
 	settings = frappe.get_single("S3 Integration Settings")
 
-	# Security: verify they have access to the File DOC
-	file_doc = frappe.db.get_value(
-		"File", {"file_url": f"/s3/{s3_key}"}, ["name", "is_private", "file_name"], as_dict=True
-	)
-
-	if not file_doc:
+	# Security: verify file exists in DB
+	file_name = frappe.db.get_value("File", {"file_url": f"/s3/{s3_key}"}, "name")
+	if not file_name:
 		raise frappe.DoesNotExistError()
 
-	if file_doc.is_private and not frappe.session.user:
+	file_obj = frappe.get_doc("File", file_name)
+
+	# Guest check: reject guests on private files explicitly
+	if file_obj.is_private and (not frappe.session.user or frappe.session.user == "Guest"):
+		raise frappe.PermissionError()
+
+	# Permission check: verify current user has read permission on the File document
+	if not file_obj.is_downloadable():
 		raise frappe.PermissionError()
 
 	# If stream_from_s3 is enabled, stream it directly, otherwise return presigned URL redirect
@@ -36,8 +40,8 @@ def get_file():
 			import mimetypes
 
 			mime_type = (
-				mimetypes.guess_type(file_doc.file_name)[0]
-				if file_doc.file_name
+				mimetypes.guess_type(file_obj.file_name)[0]
+				if file_obj.file_name
 				else "application/octet-stream"
 			)
 			response.headers["Content-Type"] = mime_type

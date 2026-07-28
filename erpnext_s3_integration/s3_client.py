@@ -1,3 +1,5 @@
+import os
+
 import frappe
 from frappe import _
 from frappe.utils.password import get_decrypted_password
@@ -43,20 +45,47 @@ class S3Client:
 
 	def setup_client(self):
 		boto3, _ = _load_boto3()
-		aws_access_key_id = self.settings.aws_access_key_id
-		aws_secret_access_key = self.get_password("aws_secret_access_key")
-		region_name = self.settings.region_name
-		endpoint_url = self.settings.endpoint_url
+		aws_access_key_id = (
+			self.settings.aws_access_key_id
+			or frappe.conf.get("s3_access_key_id")
+			or os.getenv("AWS_ACCESS_KEY_ID")
+		)
+		aws_secret_access_key = (
+			self.get_password("aws_secret_access_key")
+			or frappe.conf.get("s3_secret_access_key")
+			or os.getenv("AWS_SECRET_ACCESS_KEY")
+		)
+		region_name = (
+			self.settings.region_name
+			or frappe.conf.get("s3_region")
+			or os.getenv("AWS_DEFAULT_REGION")
+			or os.getenv("AWS_REGION")
+		)
+		endpoint_url = (
+			self.settings.endpoint_url
+			or frappe.conf.get("s3_endpoint_url")
+			or os.getenv("AWS_ENDPOINT_URL")
+		)
 
 		if not (aws_access_key_id and aws_secret_access_key):
 			frappe.throw(_("AWS Credentials are required to initialize the S3 client."))
 
-		self.bucket_name = self.settings.bucket_name
+		self.bucket_name = (
+			self.settings.bucket_name
+			or frappe.conf.get("s3_bucket")
+			or os.getenv("AWS_S3_BUCKET")
+		)
 		if not self.bucket_name:
 			frappe.throw(_("AWS Bucket Name is required."))
 
+		use_path_style = (
+			bool(self.settings.use_path_style)
+			if self.settings.get("use_path_style") is not None
+			else bool(frappe.conf.get("s3_use_path_style") or (os.getenv("AWS_S3_USE_PATH_STYLE") == "1"))
+		)
+
 		config = boto3.session.Config(signature_version="s3v4")
-		if self.settings.use_path_style:
+		if use_path_style:
 			config = boto3.session.Config(signature_version="s3v4", s3={"addressing_style": "path"})
 
 		client_kwargs = {

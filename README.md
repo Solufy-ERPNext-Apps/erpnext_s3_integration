@@ -66,6 +66,30 @@ bench restart
 4. Save the document.
 5. Click `Test Connection`.
 
+### Environment Variables & `site_config.json` Fallback
+
+If credentials are not explicitly set in **S3 Integration Settings** DocType, the app automatically falls back to `site_config.json` or Environment Variables (ideal for Docker, Kubernetes Secrets, HashiCorp Vault, AWS Secrets Manager, Doppler, Infisical, or GitOps pipelines):
+
+* **Environment Variables**:
+  * `AWS_ACCESS_KEY_ID`
+  * `AWS_SECRET_ACCESS_KEY`
+  * `AWS_DEFAULT_REGION` / `AWS_REGION`
+  * `AWS_S3_BUCKET`
+  * `AWS_ENDPOINT_URL` (optional)
+  * `AWS_S3_USE_PATH_STYLE` (`1` or `true`, optional)
+
+* **`site_config.json`**:
+  ```json
+  {
+    "s3_access_key_id": "your-access-key",
+    "s3_secret_access_key": "your-secret-key",
+    "s3_region": "us-east-1",
+    "s3_bucket": "your-bucket-name",
+    "s3_endpoint_url": "https://s3.us-east-1.amazonaws.com",
+    "s3_use_path_style": false
+  }
+  ```
+
 ## Attachment Storage Setup
 
 To store new attachments in S3:

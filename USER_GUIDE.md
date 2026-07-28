@@ -48,6 +48,11 @@ Fill in the following fields:
 
 > **Note on Environment & GitOps Configuration**:
 > If any of these fields are left empty, the application will automatically fall back to values defined in `site_config.json` (`s3_access_key_id`, `s3_secret_access_key`, `s3_region`, `s3_bucket`, `s3_endpoint_url`, `s3_use_path_style`) or Environment Variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_S3_BUCKET`, `AWS_ENDPOINT_URL`, `AWS_S3_USE_PATH_STYLE`). This is ideal for automated container deployments using secret management tools like HashiCorp Vault, AWS Secrets Manager, Doppler, Infisical, or Kubernetes Secrets.
+>
+> Because `Use Path Style` is a Check field, its disabled default is treated as
+> empty for fallback purposes. Enable it in Desk to override lower-priority
+> sources; leave it disabled to use `s3_use_path_style` or
+> `AWS_S3_USE_PATH_STYLE`.
 
 After entering the values:
 

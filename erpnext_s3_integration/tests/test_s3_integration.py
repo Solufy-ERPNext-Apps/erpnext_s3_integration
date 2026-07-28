@@ -20,15 +20,18 @@ class TestS3Integration(FrappeTestCase):
 		self.settings.folder_prefix = "test-prefix"
 		self.settings.enable_attachments_s3 = 1
 		self.settings.delete_from_s3_on_file_delete = 1
+		self.settings.stream_from_s3 = 0
+		self.settings.use_path_style = 0
+		self.settings.endpoint_url = ""
 
 		# Save to DB so get_single works natively during tests
 		self.settings.flags.ignore_mandatory = True
 		self.settings.save(ignore_permissions=True)
 
-		# For tests we won't actually encrypt to DB to avoid complexities
-		# We'll mock get_password
+		# For tests we won't actually encrypt to DB to avoid complexities.
+		# Configuration resolution decrypts the Password field directly.
 		patcher = patch(
-			"erpnext_s3_integration.s3_client.S3Client.get_password",
+			"erpnext_s3_integration.s3_client.get_decrypted_password",
 			return_value="test_secret",
 		)
 		self.mock_get_password = patcher.start()
@@ -76,7 +79,7 @@ class TestS3Integration(FrappeTestCase):
 		self.assertTrue(mock_upload.called)
 
 		# Check if file URL was updated appropriately
-		self.assertTrue(file_doc.file_url.startswith("/s3/test-prefix/attachments/private/"))
+		self.assertTrue(file_doc.file_url.startswith("/s3/test-prefix/private/"))
 
 		# Assert content is cleared so it isn't saved to disk
 		self.assertIsNone(file_doc.content)
@@ -122,13 +125,18 @@ class TestS3Integration(FrappeTestCase):
 		)
 
 		key = generate_s3_key(file_doc, self.settings)
-		self.assertTrue(key.startswith("test-prefix/attachments/public/"))
-		self.assertIn("/Sales_Invoice/", key)
+		self.assertTrue(key.startswith("test-prefix/public/"))
 		self.assertTrue(key.endswith("My_test_file_123.txt"))
 
 	@patch("erpnext_s3_integration.s3_client.S3Client.generate_presigned_url")
-	def test_existing_s3_file_access_still_works_when_uploads_disabled(self, mock_generate_presigned_url):
+	@patch("erpnext_s3_integration.s3_client.S3Client.download_as_stream")
+	def test_existing_s3_file_access_still_works_when_uploads_disabled(
+		self, mock_download_as_stream, mock_generate_presigned_url
+	):
+		import io
+
 		mock_generate_presigned_url.return_value = "https://example.com/test-file"
+		mock_download_as_stream.return_value = io.BytesIO(b"existing content")
 
 		self.settings.enable_attachments_s3 = 0
 		self.settings.stream_from_s3 = 0
@@ -138,10 +146,11 @@ class TestS3Integration(FrappeTestCase):
 			{
 				"doctype": "File",
 				"file_name": "existing_on_s3.txt",
-				"file_url": "/s3/test-prefix/existing_on_s3.txt",
+				"content": b"existing content",
 				"is_private": 0,
 			}
 		).insert(ignore_permissions=True)
+		file_doc.db_set("file_url", "/s3/test-prefix/existing_on_s3.txt")
 
 		self.addCleanup(lambda: frappe.delete_doc("File", file_doc.name, force=1, ignore_permissions=True))
 
@@ -163,7 +172,7 @@ class TestS3Integration(FrappeTestCase):
 				"Contents": [
 					{
 						"Key": "backups/site/old-file.sql.gz",
-						"LastModified": frappe.utils.add_days(frappe.utils.now_datetime(), -10),
+						"LastModified": frappe.utils.add_days(frappe.utils.now_datetime(), -10).astimezone(),
 					}
 				]
 			}

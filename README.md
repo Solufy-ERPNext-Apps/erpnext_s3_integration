@@ -78,6 +78,11 @@ If credentials are not explicitly set in **S3 Integration Settings** DocType, th
   * `AWS_ENDPOINT_URL` (optional)
   * `AWS_S3_USE_PATH_STYLE` (`1` or `true`, optional)
 
+  `Use Path Style` is a Frappe Check field, so its default `0` has no distinct
+  "unset" state. An enabled value in Desk takes priority. When it is disabled,
+  the app falls back to `s3_use_path_style` and then
+  `AWS_S3_USE_PATH_STYLE`, allowing environment-only deployments to opt in.
+
 * **`site_config.json`**:
   ```json
   {

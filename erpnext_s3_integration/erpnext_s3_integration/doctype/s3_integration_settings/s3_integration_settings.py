@@ -21,9 +21,9 @@ class S3IntegrationSettings(Document):
 
 			if missing:
 				frappe.throw(
-					_("The following S3 configuration values are required (from DocType, site_config.json, or environment): {0}").format(
-						", ".join(missing)
-					)
+					_(
+						"The following S3 configuration values are required (from DocType, site_config.json, or environment): {0}"
+					).format(", ".join(missing))
 				)
 
 

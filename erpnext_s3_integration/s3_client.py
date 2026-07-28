@@ -49,10 +49,10 @@ def resolve_s3_config(settings=None) -> dict:
 			return None
 		try:
 			return get_decrypted_password("S3 Integration Settings", "S3 Integration Settings", fieldname)
-		except frappe.exceptions.SecretNotFoundError:
-			return settings.get(fieldname)
 		except Exception:
-			return settings.get(fieldname)
+			# Password fields may contain a placeholder or encrypted payload. Never
+			# pass that raw value to AWS; continue with site config/environment.
+			return None
 
 	def _get_val(fieldname, site_config_key, env_keys, is_secret=False):
 		if settings:
@@ -70,14 +70,20 @@ def resolve_s3_config(settings=None) -> dict:
 		return None
 
 	aws_access_key_id = _get_val("aws_access_key_id", "s3_access_key_id", ["AWS_ACCESS_KEY_ID"])
-	aws_secret_access_key = _get_val("aws_secret_access_key", "s3_secret_access_key", ["AWS_SECRET_ACCESS_KEY"], is_secret=True)
+	aws_secret_access_key = _get_val(
+		"aws_secret_access_key", "s3_secret_access_key", ["AWS_SECRET_ACCESS_KEY"], is_secret=True
+	)
 	region_name = _get_val("region_name", "s3_region", ["AWS_DEFAULT_REGION", "AWS_REGION"])
 	bucket_name = _get_val("bucket_name", "s3_bucket", ["AWS_S3_BUCKET"])
 	endpoint_url = _get_val("endpoint_url", "s3_endpoint_url", ["AWS_ENDPOINT_URL"])
 
+	# Check fields do not have an "unset" state in Frappe: their default 0 is returned
+	# even when the administrator has never configured the field. Treat the false
+	# DocType default as empty so site_config/environment deployments can opt in.
+	# An enabled DocType value remains the highest-priority source.
 	use_path_style = False
-	if settings and settings.get("use_path_style") is not None:
-		use_path_style = parse_bool(settings.use_path_style)
+	if settings and parse_bool(settings.get("use_path_style")):
+		use_path_style = True
 	elif frappe.conf.get("s3_use_path_style") is not None:
 		use_path_style = parse_bool(frappe.conf.get("s3_use_path_style"))
 	elif os.getenv("AWS_S3_USE_PATH_STYLE") is not None:
@@ -112,17 +118,6 @@ class S3Client:
 	def client(self):
 		"""Expose the underlying boto3 client for internal callers like backup cleanup."""
 		return self._client
-
-	def get_password(self, fieldname):
-		# frappe.get_single doesn't decrypt passwords automatically by default in all contexts
-		if not self.settings.get(fieldname):
-			return None
-		try:
-			return get_decrypted_password("S3 Integration Settings", "S3 Integration Settings", fieldname)
-		except frappe.exceptions.SecretNotFoundError:
-			return self.settings.get(fieldname)
-		except Exception:
-			return self.settings.get(fieldname)
 
 	def setup_client(self):
 		boto3, _ = _load_boto3()
@@ -194,8 +189,14 @@ class S3Client:
 				except Exception:
 					pass
 				extra_args.pop("ACL", None)
-				self._client.upload_fileobj(fileobj, self.bucket_name, key, ExtraArgs=extra_args)
-				return True
+				try:
+					self._client.upload_fileobj(fileobj, self.bucket_name, key, ExtraArgs=extra_args)
+					return True
+				except Exception as retry_error:
+					frappe.log_error(message=frappe.get_traceback(), title=f"S3 Upload Failed for {key}")
+					raise frappe.ValidationError(
+						f"Could not upload file to S3: {retry_error}"
+					) from retry_error
 			frappe.log_error(message=frappe.get_traceback(), title=f"S3 Upload Failed for {key}")
 			raise frappe.ValidationError(f"Could not upload file to S3: {e}")
 		except Exception as e:

@@ -68,7 +68,7 @@ bench restart
 
 ### Environment Variables & `site_config.json` Fallback
 
-If credentials are not explicitly set in **S3 Integration Settings** DocType, the app automatically falls back to `site_config.json` or Environment Variables (ideal for Docker, Infisical, or GitOps pipelines):
+If credentials are not explicitly set in **S3 Integration Settings** DocType, the app automatically falls back to `site_config.json` or Environment Variables (ideal for Docker, Kubernetes Secrets, HashiCorp Vault, AWS Secrets Manager, Doppler, Infisical, or GitOps pipelines):
 
 * **Environment Variables**:
   * `AWS_ACCESS_KEY_ID`

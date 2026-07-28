@@ -88,7 +88,13 @@ If credentials are not explicitly set in **S3 Integration Settings** DocType, th
     "s3_endpoint_url": "https://s3.us-east-1.amazonaws.com",
     "s3_use_path_style": false
   }
-  ```
+### Security Enhancements & Object Ownership (ACLs)
+
+> **Important Security Note**: By default, `Use Public Read ACL` is **disabled (`0`)**. Objects uploaded to S3 are stored as private, requiring proxy streaming or pre-signed URLs. This aligns with modern AWS S3 security standards (`BucketOwnerEnforced` with Block Public Access enabled).
+
+If your environment (e.g. legacy MinIO setup) requires public read ACLs on public attachments:
+1. Enable `Use Public Read ACL` in **S3 Integration Settings** (managed strictly from Desk UI).
+2. Ensure your IAM user has `s3:PutObjectAcl` permissions and your bucket allows Object ACLs (`BucketOwnerPreferred` or ACLs enabled).
 
 ## Attachment Storage Setup
 

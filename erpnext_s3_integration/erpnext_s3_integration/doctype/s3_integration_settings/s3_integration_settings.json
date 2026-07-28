@@ -15,6 +15,7 @@
         "folder_prefix",
         "endpoint_url",
         "use_path_style",
+        "use_public_read_acl",
         "sb_actions",
         "status",
         "feature_toggles_section",
@@ -84,6 +85,13 @@
             "fieldname": "use_path_style",
             "fieldtype": "Check",
             "label": "Use Path Style"
+        },
+        {
+            "default": "0",
+            "description": "Enable to send ACL='public-read' on public uploads. Requires s3:PutObjectAcl and Bucket ACLs enabled.",
+            "fieldname": "use_public_read_acl",
+            "fieldtype": "Check",
+            "label": "Use Public Read ACL"
         },
         {
             "fieldname": "sb_actions",

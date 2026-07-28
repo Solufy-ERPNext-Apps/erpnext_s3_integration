@@ -6,18 +6,24 @@ from frappe.model.document import Document
 class S3IntegrationSettings(Document):
 	def validate(self):
 		if self.enable_attachments_s3 or self.enable_backups_s3:
-			required_fields = ["aws_access_key_id", "region_name", "bucket_name"]
-			missing = []
-			for field in required_fields:
-				if not self.get(field):
-					missing.append(self.meta.get_field(field).label)
+			from erpnext_s3_integration.s3_client import resolve_s3_config
 
-			if not self.get_password("aws_secret_access_key"):
-				missing.append("AWS Secret Access Key")
+			config = resolve_s3_config(self)
+			missing = []
+			if not config.get("aws_access_key_id"):
+				missing.append(_("AWS Access Key ID"))
+			if not config.get("aws_secret_access_key"):
+				missing.append(_("AWS Secret Access Key"))
+			if not config.get("region_name"):
+				missing.append(_("Region Name"))
+			if not config.get("bucket_name"):
+				missing.append(_("Bucket Name"))
 
 			if missing:
 				frappe.throw(
-					f"The following fields are required when S3 Integration features are enabled: {', '.join(missing)}"
+					_("The following S3 configuration values are required (from DocType, site_config.json, or environment): {0}").format(
+						", ".join(missing)
+					)
 				)
 
 

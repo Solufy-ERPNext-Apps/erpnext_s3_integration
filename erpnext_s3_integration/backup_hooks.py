@@ -2,8 +2,6 @@ import os
 
 import frappe
 
-from erpnext_s3_integration.s3_client import S3Client
-
 
 def after_backup():
 	"""Uploads database and file backups to S3 after a Frappe backup runs."""
@@ -23,6 +21,8 @@ def after_backup():
 		frappe.log_error(error_msg, "S3 Backup Sync Error")
 		log_s3_sync("Failed", error_msg)
 		return
+
+	from erpnext_s3_integration.s3_client import S3Client
 
 	s3_client = S3Client()
 

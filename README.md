@@ -33,7 +33,7 @@ Run the following from your bench directory:
 ```bash
 bench get-app https://github.com/solufy/erpnext_s3_integration
 bench --site <your-site> install-app erpnext_s3_integration
-bench restart
+bench migrate && bench restart
 ```
 
 If you are installing from a local app path or a private repository, use your normal `bench get-app` flow and then install the app on the target site.
@@ -132,7 +132,7 @@ You can also trigger an immediate manual sync from the settings form with `Take 
 
 Maintained by Solufy.
 
-- Company: Solufy
+- Company: Solufy Pvy. Ltd.
 - Email: sahil@solufy.in
 
 ## License

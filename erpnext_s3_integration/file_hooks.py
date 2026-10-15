@@ -57,8 +57,8 @@ def before_insert(file_doc, method):
 
 		# Upload the file
 		is_public = not file_doc.is_private
-		content_stream = io.BytesIO(content) if isinstance(content, bytes) else io.BytesIO(content.encode())
-		s3_client.upload_fileobj(content_stream, s3_key, file_doc.get("mime_type"), is_public)
+		with io.BytesIO(content if isinstance(content, bytes) else content.encode()) as content_stream:
+			s3_client.upload_fileobj(content_stream, s3_key, file_doc.get("mime_type"), is_public)
 
 		file_doc.file_url = f"/s3/{s3_key}"
 

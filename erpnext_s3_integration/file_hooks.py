@@ -17,9 +17,10 @@ def generate_s3_key(file_doc, settings):
 	else:
 		# Construct native-style path for brand new files
 		filename = unidecode(file_doc.file_name).replace(" ", "_") if file_doc.file_name else "unnamed_file"
-		identifier = (
-			f"{file_doc.content_hash}-{filename}" if getattr(file_doc, "content_hash", None) else filename
-		)
+		token = getattr(file_doc, "content_hash", None)
+		if not token and file_doc.is_private:
+			token = frappe.generate_hash(length=10)
+		identifier = f"{token}-{filename}" if token else filename
 
 		if file_doc.is_private:
 			base_path = f"private/{identifier}"
@@ -47,12 +48,17 @@ def before_insert(file_doc, method):
 	if not content and not frappe.flags.in_test:
 		return
 
+	# Ensure content_hash is generated so the S3 key is unpredictable
+	if not getattr(file_doc, "content_hash", None) and content:
+		from frappe.utils.file_manager import get_content_hash
+		file_doc.content_hash = get_content_hash(content)
+
 	from erpnext_s3_integration.s3_client import S3Client
 
 	try:
 		s3_client = S3Client()
 
-		# Generate the predictable S3 key
+		# Generate the S3 key
 		s3_key = generate_s3_key(file_doc, settings)
 
 		# Upload the file

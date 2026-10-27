@@ -74,12 +74,12 @@ class S3Client:
 		self._client = boto3.client(**client_kwargs)
 
 	def test_connection(self):
-		_, client_error = _load_boto3()
+		_, ClientError = _load_boto3()
 		try:
 			# Trying to list a bounded number of objects is a good way to verify bucket access
 			self._client.list_objects_v2(Bucket=self.bucket_name, MaxKeys=1)
 			return True, "Connection successful! Bucket is accessible."
-		except client_error as e:
+		except ClientError as e:
 			frappe.log_error(message=frappe.get_traceback(), title="S3 Test Connection Error")
 			return False, f"Connection Failed: {e}"
 		except Exception as e:
@@ -87,7 +87,7 @@ class S3Client:
 			return False, f"Connection Failed: {e!s}"
 
 	def upload_fileobj(self, fileobj, key, content_type=None, is_public=False):
-		_, client_error = _load_boto3()
+		_, ClientError = _load_boto3()
 		extra_args = {}
 		if content_type:
 			extra_args["ContentType"] = content_type
@@ -96,25 +96,28 @@ class S3Client:
 			extra_args["ACL"] = "public-read"
 
 		try:
-			self._client.upload_fileobj(fileobj, self.bucket_name, key, ExtraArgs=extra_args)
+			position = fileobj.tell()
+		except (AttributeError, OSError):
+			position = None
+
+		# The SDK closes upload bodies; the caller owns the original stream.
+		stream = _UploadStream(fileobj)
+		try:
+			try:
+				self._client.upload_fileobj(stream, self.bucket_name, key, ExtraArgs=extra_args)
+			except ClientError as error:
+				error_code = (error.response or {}).get("Error", {}).get("Code")
+				if error_code != "AccessControlListNotSupported" or "ACL" not in extra_args:
+					raise
+				if position is None:
+					raise ValueError("Cannot retry the S3 upload because its source stream cannot be rewound.")
+				fileobj.seek(position)
+				extra_args.pop("ACL")
+				self._client.upload_fileobj(stream, self.bucket_name, key, ExtraArgs=extra_args)
 			return True
-		except client_error as e:
-			error_code = (e.response or {}).get("Error", {}).get("Code")
-			# Buckets with Object Ownership "Bucket owner enforced" reject ACLs.
-			# Retry once without ACL so uploads still succeed.
-			if error_code == "AccessControlListNotSupported" and "ACL" in extra_args:
-				try:
-					fileobj.seek(0)
-				except Exception:
-					pass
-				extra_args.pop("ACL", None)
-				self._client.upload_fileobj(fileobj, self.bucket_name, key, ExtraArgs=extra_args)
-				return True
+		except Exception as error:
 			frappe.log_error(message=frappe.get_traceback(), title=f"S3 Upload Failed for {key}")
-			raise frappe.ValidationError(f"Could not upload file to S3: {e}")
-		except Exception as e:
-			frappe.log_error(message=frappe.get_traceback(), title=f"S3 Upload Failed for {key}")
-			raise frappe.ValidationError(f"Could not upload file to S3: {e}")
+			raise frappe.ValidationError(f"Could not upload file to S3: {error}") from error
 
 	def delete_object(self, key):
 		try:
@@ -147,3 +150,16 @@ class S3Client:
 		except Exception:
 			frappe.log_error(message=frappe.get_traceback(), title=f"S3 Downoad Failed for {key}")
 			frappe.throw(f"File {key} not found on S3 or could not be streamed.")
+
+
+class _UploadStream:
+	"""Let managed transfers close their wrapper without closing the caller's file."""
+
+	def __init__(self, source):
+		self.source = source
+
+	def __getattr__(self, name):
+		return getattr(self.source, name)
+
+	def close(self):
+		pass

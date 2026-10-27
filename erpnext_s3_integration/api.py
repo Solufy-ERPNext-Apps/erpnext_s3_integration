@@ -13,14 +13,13 @@ def get_file():
 	settings = frappe.get_single("S3 Integration Settings")
 
 	# Security: verify they have access to the File DOC
-	file_doc = frappe.db.get_value(
-		"File", {"file_url": f"/s3/{s3_key}"}, ["name", "is_private", "file_name"], as_dict=True
-	)
+	file_doc_name = frappe.db.get_value("File", {"file_url": f"/s3/{s3_key}"}, "name")
 
-	if not file_doc:
+	if not file_doc_name:
 		raise frappe.DoesNotExistError()
 
-	if file_doc.is_private and not frappe.session.user:
+	file_doc = frappe.get_doc("File", file_doc_name)
+	if not file_doc.is_downloadable():
 		raise frappe.PermissionError()
 
 	# If stream_from_s3 is enabled, stream it directly, otherwise return presigned URL redirect

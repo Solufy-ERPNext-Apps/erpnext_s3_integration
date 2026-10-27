@@ -74,12 +74,12 @@ class S3Client:
 		self._client = boto3.client(**client_kwargs)
 
 	def test_connection(self):
-		_, client_error = _load_boto3()
+		_, ClientError = _load_boto3()
 		try:
 			# Trying to list a bounded number of objects is a good way to verify bucket access
 			self._client.list_objects_v2(Bucket=self.bucket_name, MaxKeys=1)
 			return True, "Connection successful! Bucket is accessible."
-		except client_error as e:
+		except ClientError as e:
 			frappe.log_error(message=frappe.get_traceback(), title="S3 Test Connection Error")
 			return False, f"Connection Failed: {e}"
 		except Exception as e:
@@ -87,7 +87,7 @@ class S3Client:
 			return False, f"Connection Failed: {e!s}"
 
 	def upload_fileobj(self, fileobj, key, content_type=None, is_public=False):
-		_, client_error = _load_boto3()
+		_, ClientError = _load_boto3()
 		extra_args = {}
 		if content_type:
 			extra_args["ContentType"] = content_type

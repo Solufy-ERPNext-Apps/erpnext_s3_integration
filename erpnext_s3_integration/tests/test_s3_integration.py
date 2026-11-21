@@ -7,7 +7,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, now_datetime
 
-from erpnext_s3_integration import api, backup_hooks
+from erpnext_s3_integration import api, backup_hooks, migration
 from erpnext_s3_integration.file_hooks import delete_file_data_content, generate_s3_key
 from erpnext_s3_integration.s3_client import S3Client
 
@@ -113,11 +113,62 @@ class TestS3Integration(IntegrationTestCase):
 		self.insert_s3_file_record(f"/s3/{key}", content_hash=None)
 
 		frappe.local.form_dict = frappe._dict({"key": key})
-		frappe.local.response = frappe._dict()
-		api.get_file()
+		response = api.get_file()
 
-		self.assertEqual(frappe.local.response["type"], "redirect")
-		self.assertEqual(frappe.local.response["location"], "https://example.com/test-file")
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(response.headers["Location"], "https://example.com/test-file")
+
+	def test_renderer_serves_keys_with_query_characters(self):
+		self.s3_client.generate_presigned_url.return_value = "https://example.com/test-file"
+		key = f"test-prefix/files/{frappe.generate_hash()} a&b=1%.txt"
+		self.insert_s3_file_record(f"/s3/{key}", content_hash=None)
+
+		renderer = api.S3FileRenderer(f"/s3/{key}")
+		self.assertTrue(renderer.can_render())
+		self.assertEqual(renderer.render().status_code, 302)
+		self.s3_client.generate_presigned_url.assert_called_once_with(key, expires_in=3600)
+		self.assertFalse(api.S3FileRenderer("/files/a.txt").can_render())
+
+	def test_renderer_keeps_html_extension_from_request_path(self):
+		self.s3_client.generate_presigned_url.return_value = "https://example.com/test-file"
+		key = f"test-prefix/files/{frappe.generate_hash()}.html"
+		self.insert_s3_file_record(f"/s3/{key}", content_hash=None)
+
+		with patch.object(frappe.local, "request", SimpleNamespace(path=f"/s3/{key}"), create=True):
+			api.S3FileRenderer(f"/s3/{key}".removesuffix(".html")).render()
+
+		self.s3_client.generate_presigned_url.assert_called_once_with(key, expires_in=3600)
+
+	def test_private_toggle_updates_acl_and_keeps_key(self):
+		file_url = f"/s3/test-prefix/{frappe.generate_hash()}.txt"
+		file_doc = self.insert_s3_file_record(file_url, content_hash=frappe.generate_hash())
+
+		file_doc.is_private = 1
+		file_doc.save(ignore_permissions=True)
+
+		self.assertEqual(file_doc.file_url, file_url)
+		self.s3_client.set_object_acl.assert_called_once_with(file_url.removeprefix("/s3/"), False)
+
+	def test_migration_updates_shared_records_and_attach_field(self):
+		self.settings.enable_attachments_s3 = 0
+		local_file = self.insert_file(
+			content=frappe.generate_hash(),
+			attached_to_doctype="User",
+			attached_to_name="Administrator",
+			attached_to_field="user_image",
+		)
+		self.addCleanup(local_file.delete_file_from_filesystem)
+		copy = self.insert_s3_file_record(local_file.file_url, content_hash=local_file.content_hash)
+		frappe.db.set_value("User", "Administrator", "user_image", local_file.file_url)
+		self.settings.enable_attachments_s3 = 1
+
+		migration.migrate_file_url(self.s3_client, self.settings, local_file.file_url)
+
+		s3_url = f"/s3/test-prefix{local_file.file_url}"
+		self.s3_client.upload_fileobj.assert_called_once()
+		self.assertEqual(frappe.db.get_value("File", local_file.name, "file_url"), s3_url)
+		self.assertEqual(frappe.db.get_value("File", copy.name, "file_url"), s3_url)
+		self.assertEqual(frappe.db.get_value("User", "Administrator", "user_image"), s3_url)
 
 
 class TestS3Client(IntegrationTestCase):

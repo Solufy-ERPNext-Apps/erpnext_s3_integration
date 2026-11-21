@@ -114,6 +114,17 @@ class S3Client:
 			frappe.log_error(message=frappe.get_traceback(), title=f"S3 Upload Failed for {key}")
 			raise frappe.ValidationError(f"Could not upload file to S3: {error}") from error
 
+	def set_object_acl(self, key, is_public):
+		"""Set the object ACL; buckets with ACLs disabled rely on the permission-checked `/s3/` route."""
+		_, ClientError = _load_boto3()
+		try:
+			self._client.put_object_acl(
+				Bucket=self.bucket_name, Key=key, ACL="public-read" if is_public else "private"
+			)
+		except ClientError as error:
+			if (error.response or {}).get("Error", {}).get("Code") != "AccessControlListNotSupported":
+				raise
+
 	def delete_object(self, key):
 		try:
 			self._client.delete_object(Bucket=self.bucket_name, Key=key)

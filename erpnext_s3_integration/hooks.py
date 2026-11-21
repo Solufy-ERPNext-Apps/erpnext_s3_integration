@@ -12,6 +12,4 @@ scheduler_events = {"all": ["erpnext_s3_integration.backup_hooks.scheduled_backu
 
 extend_doctype_class = {"File": "erpnext_s3_integration.overrides.file.CustomFile"}
 
-website_redirects = [
-	{"source": r"/s3/(.*)", "target": r"/api/method/erpnext_s3_integration.api.get_file?key=\1"}
-]
+page_renderer = ["erpnext_s3_integration.api.S3FileRenderer"]

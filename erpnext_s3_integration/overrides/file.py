@@ -1,5 +1,6 @@
 import frappe
 from frappe.core.doctype.file.file import File
+from frappe.utils import cint
 
 
 class CustomFile(File):
@@ -66,6 +67,21 @@ class CustomFile(File):
 		if self.file_url and self.file_url.startswith("/s3/"):
 			return True
 		return super().validate_file_on_disk()
+
+	def handle_is_private_changed(self):
+		if not (self.file_url and self.file_url.startswith("/s3/")):
+			return super().handle_is_private_changed()
+
+		from frappe.core.doctype.file.utils import update_existing_file_docs
+
+		from erpnext_s3_integration.s3_client import S3Client
+
+		s3_key = self.file_url.replace("/s3/", "", 1)
+		is_public = not cint(self.is_private)
+		s3_client = S3Client()
+		s3_client.set_object_acl(s3_key, is_public)
+		frappe.db.after_rollback.add(lambda: s3_client.set_object_acl(s3_key, not is_public))
+		update_existing_file_docs(self)
 
 	def generate_content_hash(self):
 		if self.file_url and self.file_url.startswith("/s3/"):

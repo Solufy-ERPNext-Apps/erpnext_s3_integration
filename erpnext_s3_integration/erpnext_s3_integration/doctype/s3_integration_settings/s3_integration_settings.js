@@ -65,9 +65,6 @@ frappe.ui.form.on("S3 Integration Settings", {
 			() => {
 				frappe.call({
 					method: "erpnext_s3_integration.migration.start_migration",
-					args: {
-						only_unmigrated: frm.doc.migrate_only_unmigrated,
-					},
 					callback: function (r) {
 						if (!r.exc) {
 							frappe.show_alert({

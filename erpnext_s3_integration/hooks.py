@@ -5,17 +5,11 @@ app_description = "S3-based storage for File attachments and backups"
 app_email = "sahil@solufy.in"
 app_license = "mit"
 
-doc_events = {
-	"File": {
-		"before_insert": "erpnext_s3_integration.file_hooks.before_insert",
-		"on_trash": "erpnext_s3_integration.file_hooks.on_trash",
-	}
-}
+write_file = "erpnext_s3_integration.file_hooks.write_file"
+delete_file_data_content = "erpnext_s3_integration.file_hooks.delete_file_data_content"
 
 scheduler_events = {"all": ["erpnext_s3_integration.backup_hooks.scheduled_backup_and_sync"]}
 
 extend_doctype_class = {"File": "erpnext_s3_integration.overrides.file.CustomFile"}
 
-website_redirects = [
-	{"source": r"/s3/(.*)", "target": r"/api/method/erpnext_s3_integration.api.get_file?key=\1"}
-]
+page_renderer = ["erpnext_s3_integration.api.S3FileRenderer"]

@@ -4,7 +4,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint
 
-from erpnext_s3_integration.file_hooks import generate_s3_key
+from erpnext_s3_integration.file_hooks import generate_s3_key, get_content_type
 
 
 @frappe.whitelist()
@@ -87,7 +87,7 @@ def run_migration(only_unmigrated):
 			# Upload to S3
 			is_public = not doc.is_private
 			with open(local_path, "rb") as fileobj:  # nosemgrep
-				s3_client.upload_fileobj(fileobj, s3_key, doc.get("mime_type"), is_public)
+				s3_client.upload_fileobj(fileobj, s3_key, get_content_type(doc), is_public)
 
 			# Update URL and metadata
 			frappe.db.set_value(
@@ -98,6 +98,8 @@ def run_migration(only_unmigrated):
 				},
 				update_modified=False,
 			)
+			# Keep finished files migrated if the job stops later.
+			frappe.db.commit()  # nosemgrep
 
 			# Optionally remove local file here if desired, but safest to leave for manual cleanup
 			# os.remove(local_path)

@@ -5,7 +5,7 @@ from werkzeug.wsgi import wrap_file
 
 @frappe.whitelist(allow_guest=True)  # nosemgrep
 def get_file():
-	"""Serves files from S3. Routed internally via utils.before_request"""
+	"""Serve an S3 file behind a `/s3/<key>` URL after checking File read permission."""
 	s3_key = frappe.form_dict.get("key")
 	if not s3_key:
 		raise frappe.PageDoesNotExistError()

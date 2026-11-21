@@ -1,6 +1,5 @@
 import frappe
 from frappe import _
-from frappe.utils.password import get_decrypted_password
 
 
 def _load_boto3():
@@ -31,15 +30,9 @@ class S3Client:
 		return self._client
 
 	def get_password(self, fieldname):
-		# frappe.get_single doesn't decrypt passwords automatically by default in all contexts
 		if not self.settings.get(fieldname):
 			return None
-		try:
-			return get_decrypted_password("S3 Integration Settings", "S3 Integration Settings", fieldname)
-		except frappe.exceptions.SecretNotFoundError:
-			return self.settings.get(fieldname)
-		except Exception:
-			return self.settings.get(fieldname)
+		return self.settings.get_password(fieldname)
 
 	def setup_client(self):
 		boto3, _ = _load_boto3()
@@ -97,7 +90,7 @@ class S3Client:
 
 		try:
 			position = fileobj.tell()
-		except (AttributeError, OSError):
+		except AttributeError, OSError:
 			position = None
 
 		# The SDK closes upload bodies; the caller owns the original stream.
@@ -110,7 +103,9 @@ class S3Client:
 				if error_code != "AccessControlListNotSupported" or "ACL" not in extra_args:
 					raise
 				if position is None:
-					raise ValueError("Cannot retry the S3 upload because its source stream cannot be rewound.")
+					raise ValueError(
+						"Cannot retry the S3 upload because its source stream cannot be rewound."
+					)
 				fileobj.seek(position)
 				extra_args.pop("ACL")
 				self._client.upload_fileobj(stream, self.bucket_name, key, ExtraArgs=extra_args)
@@ -118,6 +113,17 @@ class S3Client:
 		except Exception as error:
 			frappe.log_error(message=frappe.get_traceback(), title=f"S3 Upload Failed for {key}")
 			raise frappe.ValidationError(f"Could not upload file to S3: {error}") from error
+
+	def set_object_acl(self, key, is_public):
+		"""Set the object ACL; buckets with ACLs disabled rely on the permission-checked `/s3/` route."""
+		_, ClientError = _load_boto3()
+		try:
+			self._client.put_object_acl(
+				Bucket=self.bucket_name, Key=key, ACL="public-read" if is_public else "private"
+			)
+		except ClientError as error:
+			if (error.response or {}).get("Error", {}).get("Code") != "AccessControlListNotSupported":
+				raise
 
 	def delete_object(self, key):
 		try:

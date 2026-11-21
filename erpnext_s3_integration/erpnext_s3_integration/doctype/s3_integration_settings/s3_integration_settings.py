@@ -20,6 +20,14 @@ class S3IntegrationSettings(Document):
 					f"The following fields are required when S3 Integration features are enabled: {', '.join(missing)}"
 				)
 
+		self.validate_backup_cron_expression()
+
+	def validate_backup_cron_expression(self):
+		from croniter import croniter
+
+		if self.backup_cron_expression and not croniter.is_valid(self.backup_cron_expression):
+			frappe.throw(_("Backup CRON Expression {0} is not valid.").format(self.backup_cron_expression))
+
 
 @frappe.whitelist()
 def test_s3_connection():
@@ -43,26 +51,7 @@ def take_backup_and_sync():
 	if not settings.enable_backups_s3:
 		frappe.throw(_("S3 Backups are currently disabled in Settings."))
 
-	frappe.enqueue(
-		"erpnext_s3_integration.erpnext_s3_integration.doctype.s3_integration_settings.s3_integration_settings.run_backup_and_sync",
-		queue="long",
-		timeout=1500,
-	)
+	from erpnext_s3_integration.backup_hooks import enqueue_backup_and_sync
+
+	enqueue_backup_and_sync(create_backup=True)
 	return "Backup and Sync job enqueued successfully."
-
-
-def run_backup_and_sync():
-	import frappe.utils.backups
-
-	from erpnext_s3_integration.backup_hooks import after_backup
-
-	try:
-		settings = frappe.get_single("S3 Integration Settings")
-
-		frappe.utils.backups.backup(with_files=settings.upload_files_backup)
-
-		# Call the after_backup hook to sync
-		after_backup()
-
-	except Exception:
-		frappe.log_error(message=frappe.get_traceback(), title="Manual S3 Backup Sync Failed")

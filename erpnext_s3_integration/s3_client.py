@@ -48,9 +48,14 @@ class S3Client:
 		if not self.bucket_name:
 			frappe.throw(_("AWS Bucket Name is required."))
 
-		config = boto3.session.Config(signature_version="s3v4")
+		config_kwargs = {
+			"signature_version": "s3v4",
+			"request_checksum_calculation": "when_required",
+			"response_checksum_validation": "when_required",
+		}
 		if self.settings.use_path_style:
-			config = boto3.session.Config(signature_version="s3v4", s3={"addressing_style": "path"})
+			config_kwargs["s3"] = {"addressing_style": "path"}
+		config = boto3.session.Config(**config_kwargs)
 
 		client_kwargs = {
 			"service_name": "s3",
